@@ -1,0 +1,9 @@
+0 xbox
+1 KFC
+2 anime
+3 Google
+4 Playstation
+5 Nintendo
+6 Star wars
+7 actores famosos
+8 no se
