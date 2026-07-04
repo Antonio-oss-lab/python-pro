@@ -1,90 +1,176 @@
-# Importa librerías necesarias
-# sounddevice: permite grabar audio desde el micrófono
-import sounddevice as sd
-
-# scipy.io.wavfile: permite guardar archivos de audio en formato .wav
-import scipy.io.wavfile as wav
-
-# speech_recognition: convierte audio en texto usando reconocimiento de voz
+# ==========================
+# IMPORTAR LIBRERÍAS
+# ==========================
 import speech_recognition as sr
+from difflib import SequenceMatcher
 
-# googletrans: traduce texto entre idiomas
-from googletrans import Translator
+# ==========================
+# CONFIGURACIÓN
+# ==========================
+max_errors = 3
+score = 0
+errors = 0
 
-preguntas = {
-    "¿Cuál es el pasado de go?": "went",
-    "¿Cuál es el pasado de eat?": "ate",
-    "¿Cuál es el pasado de see?": "saw",
-    "¿Como se dice 'perro' en inglés?": "dog",
-    "¿como se dice 'gato' en inglés?": "cat",
-    "¿como se dice 'hola' en inglés?": "hello",
-    "¿cual es el pasado de 'run'?": "ran",
-    "¿cual es el pasado de 'write'?": "wrote",
+# ==========================
+# FUNCIÓN PARA ESCUCHAR VOZ
+# ==========================
+def escuchar(lenguaje):
+    reconocedor = sr.Recognizer()
 
-}
+    with sr.Microphone() as source:
+        print("🎙 Habla ahora...")
+        reconocedor.adjust_for_ambient_noise(source, duration=1)
 
-# Duración de la grabación en segundos
-duration = 5
-
-# Frecuencia de muestreo del audio (calidad del sonido)
-# 44100 Hz = calidad tipo CD
-sample_rate = 44100
-
-for pregunta, respuesta in preguntas.items():
-    # Mensaje indicando que el usuario debe hablar
-    print("🎤 Pregunta:", pregunta)
-    print("🎙 Habla ahora...")
-
-    # Graba audio desde el micrófono:
-    # - duration * sample_rate = cantidad total de muestras
-    # - channels=1 = audio mono (un solo canal)
-    # - dtype="int16" = formato estándar de audio WAV
-    recording = sd.rec(
-        int(duration * sample_rate),
-        samplerate=sample_rate,
-        channels=1,
-        dtype="int16"
-    )
-
-    # Espera a que termine la grabación antes de continuar
-    sd.wait()
-
-    # Guarda el audio grabado en un archivo WAV llamado "output.wav"
-    wav.write("output.wav", sample_rate, recording)
-
-    # Mensaje informando que empieza el reconocimiento de voz
-    print("✅ Grabación completa, reconociendo...")
-
-
-    # Crea el objeto reconocedor de voz
-    recognizer = sr.Recognizer()
-
-
-    # Abre el archivo de audio grabado
-    with sr.AudioFile("output.wav") as source:
-        # Lee TODO el audio del archivo
-        audio = recognizer.record(source)
-
+        try:
+            audio = reconocedor.listen(source, timeout=5, phrase_time_limit=10)
+        except sr.WaitTimeoutError:
+            print("⏱ No se detectó voz.")
+            return ""
 
     try:
-        # Convierte el audio a texto usando Google Speech Recognition
-        # language="en-US" indica inglés de Estados Unidos
-        text = recognizer.recognize_google(audio, language="en-US")
+        texto = reconocedor.recognize_google(audio, language=lenguaje)
+        print("🗣 Escuché:", texto)
+        return texto.lower().strip()
 
-        # Muestra el texto reconocido
-        print("📝 Dijiste:", text)
-
-        if text.lower() == list(preguntas.values())[0].lower():
-            print("🎉 ¡Correcto! La respuesta es:", list(preguntas.values())[0])
-        else:
-            print("❌ Incorrecto. La respuesta correcta es:", list(preguntas.values())[0])
-
-
-    # Error cuando Google no puede entender el audio (ruido, silencio, etc.)
     except sr.UnknownValueError:
-        print("😕 No se pudo reconocer la voz.")
+        print("❌ No entendí lo que dijiste.")
+        return ""
 
+    except sr.RequestError:
+        print("⚠ Error con el servicio de Google.")
+        return ""
 
-    # Error cuando no hay conexión o falla el servicio de Google Speech API
-    except sr.RequestError as e:
-        print(f"❗ Error del servicio: {e}")
+# ==========================
+# FUNCIÓN PARA COMPARAR RESPUESTAS
+# ==========================
+def parecido(texto, respuesta):
+    return SequenceMatcher(None, texto, respuesta.lower()).ratio()
+
+# ==========================
+# PREGUNTAS POR IDIOMA Y NIVEL
+# ==========================
+idiomas = {
+
+    "ingles": {
+        "lenguaje": "en-US",
+
+        "facil": {
+            "¿Cómo se dice 'perro' en inglés?": "dog",
+            "¿Cómo se dice 'gato' en inglés?": "cat",
+            "¿Cómo se dice 'hola' en inglés?": "hello"
+        },
+
+        "medio": {
+            "¿Cuál es el pasado de go?": "went",
+            "¿Cuál es el pasado de eat?": "ate",
+            "¿Cuál es el pasado de see?": "saw"
+        },
+
+        "dificil": {
+            "¿Cuál es el pasado de run?": "ran",
+            "¿Cuál es el pasado de write?": "wrote",
+            "¿Cuál es el pasado de speak?": "spoke"
+        }
+    },
+
+    "frances": {
+        "lenguaje": "fr-FR",
+
+        "facil": {
+            "¿Cómo se dice 'hola' en francés?": "bonjour",
+            "¿Cómo se dice 'gracias' en francés?": "merci"
+        },
+
+        "medio": {
+            "¿Cómo se dice 'adiós' en francés?": "au revoir",
+            "¿Cómo se dice 'agua' en francés?": "eau"
+        },
+
+        "dificil": {
+            "¿Cómo se dice 'biblioteca' en francés?": "bibliothèque",
+            "¿Cómo se dice 'computadora' en francés?": "ordinateur"
+        }
+    }
+}
+
+# ==========================
+# INICIO
+# ==========================
+print("🎮 QUIZ POR VOZ")
+print()
+
+# ==========================
+# ELEGIR IDIOMA
+# ==========================
+print("Idiomas disponibles:")
+for idioma in idiomas:
+    print("-", idioma)
+
+idioma = input("\nElige un idioma: ").lower().strip()
+
+while idioma not in idiomas:
+    print("Idioma no válido.")
+    idioma = input("Elige un idioma: ").lower().strip()
+
+# ==========================
+# ELEGIR NIVEL
+# ==========================
+print("\nNiveles disponibles:")
+for nivel in idiomas[idioma]:
+    if nivel != "lenguaje":
+        print("-", nivel)
+
+nivel = input("\nElige un nivel: ").lower().strip()
+
+while nivel not in idiomas[idioma] or nivel == "lenguaje":
+    print("Nivel no válido.")
+    nivel = input("Elige un nivel: ").lower().strip()
+
+# ==========================
+# RESUMEN
+# ==========================
+lenguaje = idiomas[idioma]["lenguaje"]
+quiz = idiomas[idioma][nivel]
+
+print("\n==========================")
+print("Idioma:", idioma.capitalize())
+print("Nivel:", nivel.capitalize())
+print("==========================")
+
+# ==========================
+# BUCLE PRINCIPAL
+# ==========================
+for pregunta, respuesta in quiz.items():
+
+    print("\n❓", pregunta)
+    texto = escuchar(lenguaje)
+
+    if texto == "":
+        errors += 1
+        print("⚠ Se contará como error.")
+        print(f"Errores: {errors}/{max_errors}")
+
+    elif parecido(texto, respuesta) >= 0.80:
+        score += 1
+        print("✅ ¡Correcto!")
+        print("⭐ Puntaje:", score)
+
+    else:
+        errors += 1
+        print("❌ Incorrecto.")
+        print("✔ Respuesta correcta:", respuesta)
+        print(f"⚠ Errores: {errors}/{max_errors}")
+
+    if errors >= max_errors:
+        print("\n💀 GAME OVER")
+        break
+
+# ==========================
+# RESULTADOS
+# ==========================
+print("\n==========================")
+print("🏁 FIN DEL JUEGO")
+print("==========================")
+print("⭐ Puntaje:", score)
+print("❌ Errores:", errors)
+print("Gracias por jugar.")
